@@ -18,9 +18,11 @@ if not os.path.exists(run_file) or not run_file.endswith('.csv'):
 date = os.path.basename(run_file).replace(".csv", "")
 
 try:
-    datetime.strptime(date, "%Y-%m,%d")
+    datetime.strptime(date, "%Y-%m-%d")
+    
 except ValueError:
     print("Error: Filename must be in YYYY-MM-DD format.")
+    sys.exit(1)
 
 try:
     df = pd.read_csv(run_file)
