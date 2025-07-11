@@ -1,0 +1,6 @@
+.env
+raw_tcx/
+raw/
+data/
+last_download.txt
+ai_propt/
