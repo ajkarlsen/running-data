@@ -25,24 +25,30 @@ def display_week_summary(weekly_data, week_num, df_filtered):
     week_data = weekly_data.loc[week_num]
     runs_in_week = df_filtered[df_filtered["week"] == week_num]
     
-    print(f"\n{'='*50}")
-    print(f"WEEK {week_num} SUMMARY")
-    print(f"{'='*50}")
-    print(f"Total Distance: {week_data['distance']:.2f} km")
-    print(f"Number of Runs: {week_data['num_runs']}")
-    print(f"Average Pace: {week_data['avg_pace']}")
-    print(f"Average Rating: {week_data['rating']:.1f}/10")
-    print(f"Average HR: {week_data['avg_hr']:.0f} bpm")
-    print(f"Total Ascent: {week_data['total_ascent']:.0f} m")
+    print(f"\n{'='*60}")
+    print(f"WEEK {week_num} SUMMARY".center(60))
+    print(f"{'='*60}")
     
-    if week_data['notes']:
-        print(f"Notes: {week_data['notes']}")
+    # Create a nicely formatted summary table
+    print(f"{'Total Distance:':<20} {week_data['distance']:.2f} km")
+    print(f"{'Number of Runs:':<20} {week_data['num_runs']}")
+    print(f"{'Average Pace:':<20} {week_data['avg_pace']}")
+    print(f"{'Average Rating:':<20} {week_data['rating']:.1f}/10")
+    print(f"{'Average Heart Rate:':<20} {week_data['avg_hr']:.0f} bpm")
     
-    print(f"\nIndividual Runs:")
-    print("-" * 50)
+    print(f"\n{'INDIVIDUAL RUNS'.center(60)}")
+    print("-" * 60)
+    
     for _, run in runs_in_week.iterrows():
-        print(f"{run['date'].strftime('%Y-%m-%d')}: {run['distance']:.2f}km, "
-              f"Rating: {run['rating']}/10")
+        date_str = run['date'].strftime('%Y-%m-%d')
+        run_type = run.get('type', 'Unknown')
+        
+        print(f"{date_str} | {run['distance']:.2f}km | {run_type} | Rating: {run['rating']}/10")
+        
+        # Show notes if they exist
+        if pd.notnull(run['notes']) and run['notes'] != "":
+            print(f"    Notes: {run['notes']}")
+    
     print()
 
 def main():
@@ -70,11 +76,6 @@ def main():
         rating=("rating", "mean"),
         avg_pace=("avg pace", "mean"),
         avg_hr=("avg hr", "mean"),
-        total_ascent=("total ascent", "sum"),
-        notes=(
-            "notes",
-            lambda x: "; ".join([str(n) for n in x if pd.notnull(n) and n != ""]),
-        ),
     )
     
     # Convert average pace back to mm:ss format
@@ -106,9 +107,18 @@ def main():
             except ValueError:
                 print("Please enter a valid week number.")
         elif choice == "3":
-            print("\nAll Weeks Summary:")
-            print("=" * 60)
-            print(weekly.to_string())
+            print("\nALL WEEKS SUMMARY")
+            print("=" * 70)
+            
+            # Create a nicely formatted table for all weeks
+            print(f"{'Week':<6} {'Distance':<10} {'Runs':<6} {'Avg Pace':<10} {'Avg Rating':<12} {'Avg HR':<8}")
+            print("-" * 70)
+            
+            for week_num in sorted(weekly.index):
+                week_data = weekly.loc[week_num]
+                print(f"{week_num:<6} {week_data['distance']:<10.2f} {week_data['num_runs']:<6} "
+                      f"{week_data['avg_pace']:<10} {week_data['rating']:<12.1f} {week_data['avg_hr']:<8.0f}")
+            
             print()
         elif choice == "4":
             print("Goodbye!")

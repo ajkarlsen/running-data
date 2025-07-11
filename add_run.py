@@ -81,7 +81,7 @@ summary_row = df.iloc[-1]
 # Check for required columns
 required_cols = [
     "Distancekm", "Cumulative Time", "Avg Pacemin/km",
-    "Avg HRbpm", "Avg Run Cadencespm", "Total Ascentm"
+    "Avg HRbpm",
 ]
 for col in required_cols:
     if col not in summary_row:
@@ -94,8 +94,6 @@ run_row = {
     "time": summary_row["Cumulative Time"],
     "avg pace": summary_row["Avg Pacemin/km"],
     "avg hr": summary_row["Avg HRbpm"],
-    "avg cadence": summary_row["Avg Run Cadencespm"],
-    "total ascent": summary_row["Total Ascentm"],
     "rating": rating_int,
     "type": run_type,
     "notes": notes,
