@@ -35,6 +35,33 @@ if df.empty:
     sys.exit(1)
 
 
+while True: 
+    run_type = input("What type of run was it? \n" + 
+                     "1. Easy run\n" + 
+                     "2. Tempo run\n" + 
+                     "3. Interval run\n" + 
+                     "4. Long run\n")
+    try:
+        run_int = int(run_type)
+        if run_int == 1:
+            run_type = "Easy run"
+            break
+        elif run_int == 2:
+            run_type = "Tempo run"
+            break
+        elif run_int == 3:
+            run_type = "Interval run"
+            break
+        elif run_int == 4:
+            run_type = "Long run"
+            break
+        else:
+            print("Please enter a number between 1 and 4.")
+    except ValueError:
+        print("Enter a valid number between 1 and 4")
+
+
+
 # Validate rating input
 while True:
     rating = input("How did you feel? (1-10): ")
@@ -70,6 +97,7 @@ run_row = {
     "avg cadence": summary_row["Avg Run Cadencespm"],
     "total ascent": summary_row["Total Ascentm"],
     "rating": rating_int,
+    "type": run_type,
     "notes": notes,
 }
 
