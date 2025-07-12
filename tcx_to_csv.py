@@ -168,36 +168,37 @@ def format_seconds_to_pace(seconds):
     remaining_seconds = int(seconds % 60)
     return f"{minutes}:{remaining_seconds:02d}"
 
-def calculate_ascent(lap, ns):
+def calculate_ascent(lap, ns, step=23):
     """
-    Calculate total ascent for a lap by analyzing trackpoint altitude data.
-    
+    Calculate total ascent for a lap by sampling every Nth trackpoint.
     Args:
         lap: XML lap element
         ns: XML namespace dictionary
-    
+        step: int, sample every Nth trackpoint
     Returns:
         float: Total ascent in meters
     """
     trackpoints = lap.findall('.//tcx:Trackpoint', ns)
-    
-    if len(trackpoints) < 2:
-        return 0.0
-    
-    total_ascent = 0.0
-    previous_altitude = None
-    
+    altitudes = []
     for trackpoint in trackpoints:
         altitude_elem = trackpoint.find('tcx:AltitudeMeters', ns)
-        
         if altitude_elem is not None:
-            current_altitude = float(altitude_elem.text)
-            
-            if previous_altitude is not None and current_altitude > previous_altitude:
-                total_ascent += current_altitude - previous_altitude
-            
-            previous_altitude = current_altitude
-            
+            altitudes.append(float(altitude_elem.text))
+
+    if len(altitudes) < 2:
+        return 0.0
+
+    # Sample every Nth altitude
+    sampled = altitudes[::step]
+    if sampled[-1] != altitudes[-1]:
+        sampled.append(altitudes[-1])  # Ensure last point is included
+
+    total_ascent = 0.0
+    for prev, curr in zip(sampled, sampled[1:]):
+        diff = curr - prev
+        if diff > 0:
+            total_ascent += diff
+
     return total_ascent
 
 def main():
