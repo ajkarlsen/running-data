@@ -44,6 +44,9 @@ def parse_tcx_to_csv(tcx_file_path, csv_file_path):
             avg_hr = int(avg_hr_elem.text) if avg_hr_elem is not None else ""
             max_hr = int(max_hr_elem.text) if max_hr_elem is not None else ""
             
+            # Calculate ascent for this lap
+            lap_ascent = calculate_ascent(lap, ns)
+            
             # Calculate cumulative time
             cumulative_time += total_time
             
@@ -65,7 +68,7 @@ def parse_tcx_to_csv(tcx_file_path, csv_file_path):
                 'Avg GAPmin/km': pace_str,  # Using same as pace for now
                 'Avg HRbpm': str(avg_hr),
                 'Max HRbpm': str(max_hr),
-                'Total Ascentm': "",  # Not available in basic TCX
+                'Total Ascentm': f"{lap_ascent:.2f}" if lap_ascent > 0 else "",  # Using calculated ascent
                 'Total Descentm': "",  # Not available in basic TCX
                 'Avg PowerW': "",  # Not available in basic TCX
                 'Avg W/kg': "",  # Not available in basic TCX
@@ -93,6 +96,9 @@ def parse_tcx_to_csv(tcx_file_path, csv_file_path):
         total_distance = sum(float(row['Distancekm']) for row in data)
         total_calories = sum(int(row['CaloriesC']) for row in data if row['CaloriesC'])
         
+        # Total ascent for summary
+        total_ascent = sum(float(row['Total Ascentm']) for row in data if row['Total Ascentm'])
+        
         # Calculate average pace for summary
         total_time_seconds = cumulative_time
         avg_pace_seconds = total_time_seconds / total_distance if total_distance > 0 else 0
@@ -112,7 +118,7 @@ def parse_tcx_to_csv(tcx_file_path, csv_file_path):
             'Avg GAPmin/km': avg_pace_str,
             'Avg HRbpm': str(avg_hr),
             'Max HRbpm': str(max_hr),
-            'Total Ascentm': "",
+            'Total Ascentm': f"{total_ascent:.2f}" if total_ascent > 0 else "", # Using total ascent
             'Total Descentm': "",
             'Avg PowerW': "",
             'Avg W/kg': "",
@@ -161,6 +167,38 @@ def format_seconds_to_pace(seconds):
     minutes = int(seconds // 60)
     remaining_seconds = int(seconds % 60)
     return f"{minutes}:{remaining_seconds:02d}"
+
+def calculate_ascent(lap, ns):
+    """
+    Calculate total ascent for a lap by analyzing trackpoint altitude data.
+    
+    Args:
+        lap: XML lap element
+        ns: XML namespace dictionary
+    
+    Returns:
+        float: Total ascent in meters
+    """
+    trackpoints = lap.findall('.//tcx:Trackpoint', ns)
+    
+    if len(trackpoints) < 2:
+        return 0.0
+    
+    total_ascent = 0.0
+    previous_altitude = None
+    
+    for trackpoint in trackpoints:
+        altitude_elem = trackpoint.find('tcx:AltitudeMeters', ns)
+        
+        if altitude_elem is not None:
+            current_altitude = float(altitude_elem.text)
+            
+            if previous_altitude is not None and current_altitude > previous_altitude:
+                total_ascent += current_altitude - previous_altitude
+            
+            previous_altitude = current_altitude
+            
+    return total_ascent
 
 def main():
     if len(sys.argv) == 1:
