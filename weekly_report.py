@@ -35,6 +35,7 @@ def display_week_summary(weekly_data, week_num, df_filtered):
     print(f"{'Average Pace:':<20} {week_data['avg_pace']}")
     print(f"{'Average Rating:':<20} {week_data['rating']:.1f}/10")
     print(f"{'Average Heart Rate:':<20} {week_data['avg_hr']:.0f} bpm")
+    print(f"{'Total Ascent:':<20} {week_data['total_ascent']:.0f} m")
     
     print(f"\n{'INDIVIDUAL RUNS'.center(60)}")
     print("-" * 60)
@@ -76,6 +77,7 @@ def main():
         rating=("rating", "mean"),
         avg_pace=("avg pace", "mean"),
         avg_hr=("avg hr", "mean"),
+        total_ascent=("total ascent", "sum"),
     )
     
     # Convert average pace back to mm:ss format
@@ -111,13 +113,14 @@ def main():
             print("=" * 70)
             
             # Create a nicely formatted table for all weeks
-            print(f"{'Week':<6} {'Distance':<10} {'Runs':<6} {'Avg Pace':<10} {'Avg Rating':<12} {'Avg HR':<8}")
-            print("-" * 70)
+            print(f"{'Week':<6} {'Distance':<10} {'Runs':<6} {'Avg Pace':<10} {'Avg Rating':<12} {'Avg HR':<8} {'Total Ascent':<12}")
+            print("-" * 80)
             
             for week_num in sorted(weekly.index):
                 week_data = weekly.loc[week_num]
                 print(f"{week_num:<6} {week_data['distance']:<10.2f} {week_data['num_runs']:<6} "
-                      f"{week_data['avg_pace']:<10} {week_data['rating']:<12.1f} {week_data['avg_hr']:<8.0f}")
+                      f"{week_data['avg_pace']:<10} {week_data['rating']:<12.1f} {week_data['avg_hr']:<8.0f} "
+                      f"{week_data['total_ascent']:<12.0f}")
             
             print()
         elif choice == "4":
