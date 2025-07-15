@@ -3,6 +3,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+import os
+import glob
 
 # Configure the page
 st.set_page_config(
@@ -25,6 +27,49 @@ def pace_format_back(pace_float):
 def get_current_week():
     """Get the current week number"""
     return datetime.now().isocalendar().week
+
+def get_unprocessed_csv_files():
+    """Get CSV files from raw/ directory that haven't been processed yet"""
+    try:
+        # Get all CSV files in raw directory
+        raw_csv_files = glob.glob("raw/*.csv")
+        
+        if not raw_csv_files:
+            return []
+        
+        # Get existing run dates from the database
+        try:
+            existing_runs = pd.read_csv("data/runs.csv")
+            existing_dates = set(existing_runs["date"].astype(str))
+        except Exception:
+            existing_dates = set()
+        
+        # Filter out files that have already been processed
+        unprocessed_files = []
+        for file_path in raw_csv_files:
+            # Extract date from filename (e.g., "raw/2025-07-13.csv" -> "2025-07-13")
+            filename = os.path.basename(file_path)
+            date_str = filename.replace(".csv", "")
+            
+            # Validate date format
+            try:
+                datetime.strptime(date_str, "%Y-%m-%d")
+                if date_str not in existing_dates:
+                    unprocessed_files.append({
+                        'path': file_path,
+                        'filename': filename,
+                        'date': date_str
+                    })
+            except ValueError:
+                continue  # Skip files that don't have valid date format
+        
+        # Sort by date (newest first)
+        unprocessed_files.sort(key=lambda x: x['date'], reverse=True)
+        return unprocessed_files
+        
+    except Exception as e:
+        st.error(f"Error scanning raw directory: {e}")
+        return []
 
 def load_data():
     """Load and process running data"""
@@ -79,7 +124,7 @@ def main():
     st.sidebar.title("Navigation")
     view_option = st.sidebar.selectbox(
         "Choose View:",
-        ["Current Week", "Previous Weeks", "All Weeks", "Individual Runs"]
+        ["Current Week", "Previous Weeks", "All Weeks", "Individual Runs", "Add New Run"]
     )
     
     # Current Week View
@@ -328,6 +373,241 @@ def main():
         display_runs['Total Ascent (m)'] = pd.to_numeric(display_runs['Total Ascent (m)'], errors='coerce').round(0).astype('Int64')
         
         st.dataframe(display_runs, use_container_width=True)
+    
+    # Add New Run View
+    elif view_option == "Add New Run":
+        st.header("➕ Add New Run")
+        st.markdown("Select from unprocessed CSV files or enter run data manually.")
+        
+        # Create tabs for different input methods
+        tab1, tab2 = st.tabs(["📁 Process CSV Files", "✏️ Manual Entry"])
+        
+        with tab1:
+            st.subheader("Available Unprocessed CSV Files")
+            
+            # Get unprocessed files
+            unprocessed_files = get_unprocessed_csv_files()
+            
+            if not unprocessed_files:
+                st.info("No unprocessed CSV files found! All runs from the raw/ directory have been added.")
+                st.markdown("New CSV files will appear here automatically when your cron job downloads them.")
+            else:
+                st.success(f"Found {len(unprocessed_files)} unprocessed run(s)")
+                
+                # Show available files
+                for file_info in unprocessed_files:
+                    with st.expander(f"📅 {file_info['date']} - {file_info['filename']}", expanded=False):
+                        try:
+                            # Read and preview the CSV file
+                            df_file = pd.read_csv(file_info['path'])
+                            
+                            if df_file.empty:
+                                st.error("This CSV file is empty.")
+                                continue
+                            
+                            # Show preview
+                            st.subheader("Data Preview")
+                            st.dataframe(df_file.head(3))
+                            
+                            # Extract summary row (last row)
+                            summary_row = df_file.iloc[-1]
+                            
+                            # Check for required columns
+                            required_cols = [
+                                "Distancekm", "Cumulative Time", "Avg Pacemin/km",
+                                "Avg HRbpm", "Total Ascentm"
+                            ]
+                            
+                            missing_cols = [col for col in required_cols if col not in summary_row]
+                            
+                            if missing_cols:
+                                st.error(f"Missing required columns: {', '.join(missing_cols)}")
+                                continue
+                            
+                            # Show extracted data
+                            col1, col2, col3 = st.columns(3)
+                            
+                            with col1:
+                                st.metric("Distance", f"{summary_row['Distancekm']:.2f} km")
+                                st.metric("Time", summary_row["Cumulative Time"])
+                            
+                            with col2:
+                                st.metric("Average Pace", summary_row["Avg Pacemin/km"])
+                                st.metric("Average HR", f"{summary_row['Avg HRbpm']:.0f} bpm")
+                            
+                            with col3:
+                                st.metric("Total Ascent", f"{summary_row['Total Ascentm']:.0f} m")
+                            
+                            # Form for this specific file
+                            with st.form(f"process_file_{file_info['date']}"):
+                                st.subheader("Run Details")
+                                
+                                col1, col2 = st.columns(2)
+                                
+                                with col1:
+                                    # Use the date from filename as default
+                                    run_date = st.date_input(
+                                        "Run Date",
+                                        value=datetime.strptime(file_info['date'], "%Y-%m-%d").date(),
+                                        help="Date when the run took place",
+                                        key=f"date_{file_info['date']}"
+                                    )
+                                    
+                                    run_type = st.selectbox(
+                                        "Run Type",
+                                        ["Easy run", "Tempo run", "Interval run", "Long run"],
+                                        key=f"type_{file_info['date']}"
+                                    )
+                                
+                                with col2:
+                                    rating = st.slider(
+                                        "How did you feel? (1-10)",
+                                        min_value=1,
+                                        max_value=10,
+                                        value=5,
+                                        help="Rate how you felt during the run",
+                                        key=f"rating_{file_info['date']}"
+                                    )
+                                
+                                notes = st.text_area(
+                                    "Notes about the run",
+                                    placeholder="Any additional notes about the run...",
+                                    height=80,
+                                    key=f"notes_{file_info['date']}"
+                                )
+                                
+                                submitted = st.form_submit_button(f"Add Run from {file_info['date']}")
+                                
+                                if submitted:
+                                    # Create new run entry
+                                    run_row = {
+                                        "date": run_date.strftime("%Y-%m-%d"),
+                                        "distance": summary_row["Distancekm"],
+                                        "time": summary_row["Cumulative Time"],
+                                        "avg pace": summary_row["Avg Pacemin/km"],
+                                        "avg hr": summary_row["Avg HRbpm"],
+                                        "total ascent": summary_row["Total Ascentm"],
+                                        "rating": rating,
+                                        "type": run_type,
+                                        "notes": notes.strip(),
+                                    }
+                                    
+                                    # Add to CSV
+                                    try:
+                                        row_df = pd.DataFrame([run_row])
+                                        row_df.to_csv("data/runs.csv", header=False, mode='a', index=False)
+                                        st.success(f"✅ Run from {file_info['date']} added successfully!")
+                                        st.balloons()
+                                        
+                                        # Auto-refresh data by rerunning
+                                        st.rerun()
+                                        
+                                    except Exception as e:
+                                        st.error(f"Error saving run: {e}")
+                        
+                        except Exception as e:
+                            st.error(f"Error reading file {file_info['filename']}: {e}")
+        
+        with tab2:
+            st.subheader("Manual Run Entry")
+            
+            with st.form("manual_run_form"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    run_date = st.date_input(
+                        "Run Date",
+                        value=datetime.now().date()
+                    )
+                    
+                    distance = st.number_input(
+                        "Distance (km)",
+                        min_value=0.1,
+                        max_value=100.0,
+                        value=5.0,
+                        step=0.1,
+                        format="%.2f"
+                    )
+                    
+                    time_input = st.text_input(
+                        "Total Time (HH:MM:SS or MM:SS)",
+                        placeholder="e.g., 30:45 or 1:15:30",
+                        help="Enter time in MM:SS or HH:MM:SS format"
+                    )
+                    
+                    pace_input = st.text_input(
+                        "Average Pace (MM:SS per km)",
+                        placeholder="e.g., 5:30",
+                        help="Enter pace in MM:SS format"
+                    )
+                
+                with col2:
+                    avg_hr = st.number_input(
+                        "Average Heart Rate (bpm)",
+                        min_value=60,
+                        max_value=220,
+                        value=150,
+                        step=1
+                    )
+                    
+                    total_ascent = st.number_input(
+                        "Total Ascent (m)",
+                        min_value=0,
+                        max_value=5000,
+                        value=50,
+                        step=1
+                    )
+                    
+                    run_type = st.selectbox(
+                        "Run Type",
+                        ["Easy run", "Tempo run", "Interval run", "Long run"]
+                    )
+                    
+                    rating = st.slider(
+                        "How did you feel? (1-10)",
+                        min_value=1,
+                        max_value=10,
+                        value=5
+                    )
+                
+                notes = st.text_area(
+                    "Notes about the run",
+                    placeholder="Any additional notes about the run...",
+                    height=100
+                )
+                
+                submitted_manual = st.form_submit_button("Add Run")
+                
+                if submitted_manual:
+                    # Validate inputs
+                    if not time_input or not pace_input:
+                        st.error("Please fill in all required fields (time and pace).")
+                    else:
+                        try:
+                            # Create new run entry
+                            run_row = {
+                                "date": run_date.strftime("%Y-%m-%d"),
+                                "distance": distance,
+                                "time": time_input,
+                                "avg pace": pace_input,
+                                "avg hr": avg_hr,
+                                "total ascent": total_ascent,
+                                "rating": rating,
+                                "type": run_type,
+                                "notes": notes.strip(),
+                            }
+                            
+                            # Add to CSV
+                            row_df = pd.DataFrame([run_row])
+                            row_df.to_csv("data/runs.csv", header=False, mode='a', index=False)
+                            st.success("✅ Run added successfully!")
+                            st.balloons()
+                            
+                            # Auto-refresh data by rerunning
+                            st.rerun()
+                            
+                        except Exception as e:
+                            st.error(f"Error saving run: {e}")
 
 if __name__ == "__main__":
     main()
