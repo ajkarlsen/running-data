@@ -4,3 +4,4 @@ raw/
 data/
 last_download.txt
 ai-prompt/
+venv/
