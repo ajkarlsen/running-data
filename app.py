@@ -5,6 +5,8 @@ import plotly.graph_objects as go
 from datetime import datetime
 import os
 import glob
+import subprocess
+import sys
 
 # Configure the page
 st.set_page_config(
@@ -104,6 +106,28 @@ def load_data():
         return None, "No runs.csv file found. Add some runs first!"
     except Exception as e:
         return None, f"Error loading data: {e}"
+
+def run_garmin_pull():
+    """Run the garmin_pull.py script and return success status and output"""
+    try:
+        result = subprocess.run([sys.executable, 'garmin_pull.py'], 
+                              capture_output=True, text=True, timeout=60)
+        return result.returncode == 0, result.stdout, result.stderr
+    except subprocess.TimeoutExpired:
+        return False, "", "Timeout: Garmin download took too long"
+    except Exception as e:
+        return False, "", str(e)
+
+def run_tcx_to_csv_batch():
+    """Run the tcx_to_csv.py script in batch mode and return success status and output"""
+    try:
+        result = subprocess.run([sys.executable, 'tcx_to_csv.py', '--batch'], 
+                              capture_output=True, text=True, timeout=30)
+        return result.returncode == 0, result.stdout, result.stderr
+    except subprocess.TimeoutExpired:
+        return False, "", "Timeout: TCX conversion took too long"
+    except Exception as e:
+        return False, "", str(e)
 
 # Main app
 def main():
@@ -385,12 +409,93 @@ def main():
         with tab1:
             st.subheader("Available Unprocessed CSV Files")
             
+            # Add manual sync buttons
+            st.markdown("### 🔄 Manual Sync from Garmin")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("📥 Download from Garmin", help="Run garmin_pull.py to download new TCX files"):
+                    with st.spinner("Downloading new activities from Garmin Connect..."):
+                        success, stdout, stderr = run_garmin_pull()
+                        
+                        if success:
+                            st.success("✅ Garmin download completed!")
+                            if stdout:
+                                with st.expander("Download Details", expanded=False):
+                                    st.text(stdout)
+                        else:
+                            st.error("❌ Garmin download failed!")
+                            if stderr:
+                                st.error(f"Error: {stderr}")
+                            if stdout:
+                                st.text(stdout)
+            
+            with col2:
+                if st.button("🔄 Convert TCX to CSV", help="Run tcx_to_csv.py to convert downloaded TCX files"):
+                    with st.spinner("Converting TCX files to CSV..."):
+                        success, stdout, stderr = run_tcx_to_csv_batch()
+                        
+                        if success:
+                            st.success("✅ TCX conversion completed!")
+                            if stdout:
+                                with st.expander("Conversion Details", expanded=False):
+                                    st.text(stdout)
+                            # Auto-refresh to show new files
+                            st.rerun()
+                        else:
+                            st.error("❌ TCX conversion failed!")
+                            if stderr:
+                                st.error(f"Error: {stderr}")
+                            if stdout:
+                                st.text(stdout)
+            
+            # Add a combined button for convenience
+            st.markdown("---")
+            if st.button("⚡ Download & Convert All", 
+                        help="Download from Garmin and convert to CSV in one step", 
+                        type="primary"):
+                with st.spinner("Downloading from Garmin and converting to CSV..."):
+                    # Step 1: Download from Garmin
+                    st.info("Step 1: Downloading from Garmin Connect...")
+                    garmin_success, garmin_stdout, garmin_stderr = run_garmin_pull()
+                    
+                    if garmin_success:
+                        st.success("✅ Garmin download completed!")
+                        
+                        # Step 2: Convert TCX to CSV
+                        st.info("Step 2: Converting TCX files to CSV...")
+                        csv_success, csv_stdout, csv_stderr = run_tcx_to_csv_batch()
+                        
+                        if csv_success:
+                            st.success("🎉 All done! New runs are ready to be processed.")
+                            
+                            # Show combined output
+                            with st.expander("Process Details", expanded=False):
+                                if garmin_stdout:
+                                    st.text("Garmin Download Output:")
+                                    st.text(garmin_stdout)
+                                if csv_stdout:
+                                    st.text("\nTCX Conversion Output:")
+                                    st.text(csv_stdout)
+                            
+                            # Auto-refresh to show new files
+                            st.rerun()
+                        else:
+                            st.error("❌ TCX conversion failed!")
+                            if csv_stderr:
+                                st.error(f"Conversion Error: {csv_stderr}")
+                    else:
+                        st.error("❌ Garmin download failed!")
+                        if garmin_stderr:
+                            st.error(f"Download Error: {garmin_stderr}")
+            
+            st.markdown("---")
+            
             # Get unprocessed files
             unprocessed_files = get_unprocessed_csv_files()
             
             if not unprocessed_files:
-                st.info("No unprocessed CSV files found! All runs from the raw/ directory have been added.")
-                st.markdown("New CSV files will appear here automatically when your cron job downloads them.")
+                st.info("No unprocessed CSV files found!")
             else:
                 st.success(f"Found {len(unprocessed_files)} unprocessed run(s)")
                 
